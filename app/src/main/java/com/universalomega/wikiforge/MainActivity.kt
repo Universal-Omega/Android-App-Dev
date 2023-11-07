@@ -2,6 +2,11 @@ package com.universalomega.wikiforge
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.ColorFilter
+import android.graphics.PixelFormat
+import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Bundle
 import android.view.Menu
@@ -328,10 +333,29 @@ class MainActivity : AppCompatActivity() {
     private fun updateDrawerMenu(menu: Menu) {
         menu.removeGroup(R.id.group_id)
         for (page in filteredPages) {
-            menu.add(R.id.group_id, Menu.NONE, Menu.NONE, page)
-                // TODO set a real icon, maybe pull from PageImages and
-                //  convert to a Bitmap to draw with this or something
-                .setIcon(R.drawable.avatar_10)
+            menu.add(R.id.group_id, Menu.NONE, Menu.NONE, page).icon =
+                createFaviconDrawable(webView.favicon)
+        }
+    }
+
+    private fun createFaviconDrawable(faviconBitmap: Bitmap?): Drawable {
+        return object : Drawable() {
+            override fun draw(canvas: Canvas) {
+                faviconBitmap?.let { bitmap ->
+                    canvas.drawBitmap(bitmap, bounds.left.toFloat(), 15f, null)
+                }
+            }
+
+            override fun setAlpha(alpha: Int) {}
+
+            override fun setColorFilter(colorFilter: ColorFilter?) {}
+
+            @Deprecated("Deprecated in Java",
+                ReplaceWith("PixelFormat.TRANSLUCENT", "android.graphics.PixelFormat")
+            )
+            override fun getOpacity(): Int {
+                return PixelFormat.TRANSLUCENT
+            }
         }
     }
 
