@@ -40,8 +40,6 @@ private val staticUrls = listOf(
     "static.wikiforge.net"
 )
 
-
-
 data class WikiPageResponse(
     val parse: Parse,
 )
@@ -105,9 +103,7 @@ suspend fun fetchAvailablePages(): List<String> {
         while (true) {
             val response = if (apcontinue != null) {
                 wikiService.getAvailablePages(apcontinue = apcontinue)
-            } else {
-                wikiService.getAvailablePages()
-            }
+            } else wikiService.getAvailablePages()
 
             val pages = response.query.allpages.map { it.title }
             allPages.addAll(pages)
@@ -179,17 +175,19 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
 
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        webView = binding.webView
+        val drawerLayout = binding.drawerLayout
+        val swipeRefreshLayout = binding.swipeRefreshLayout
 
         val contentTextView = binding.contentTextView
-        val drawerLayout = binding.drawerLayout
         val navigationView = binding.navigationView
+
+        webView = binding.webView
 
         webView.settings.javaScriptEnabled = true
         webView.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
@@ -215,6 +213,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
+
+        // Handle refreshing
+        swipeRefreshLayout.setOnRefreshListener {
+            webView.reload()
+            if (swipeRefreshLayout.isRefreshing) {
+                swipeRefreshLayout.isRefreshing = false
+            }
+        }
 
         if (savedInstanceState != null) {
             // Restore the current URL
@@ -394,4 +400,3 @@ class MainActivity : AppCompatActivity() {
         }
     }
 }
-//266
