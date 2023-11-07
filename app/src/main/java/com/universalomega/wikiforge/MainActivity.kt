@@ -173,6 +173,7 @@ suspend fun fetchMainPageUrl(): String? {
 }
 
 class MainActivity : AppCompatActivity() {
+    private var currentUrl: String? = null
     private var cachedPages: List<String>? = null
     private lateinit var filteredPages: List<String>
 
@@ -215,14 +216,22 @@ class MainActivity : AppCompatActivity() {
 
         onBackPressedDispatcher.addCallback(this, onBackPressedCallback)
 
+        if (savedInstanceState != null) {
+            // Restore the current URL
+            currentUrl = savedInstanceState.getString("currentUrl")
+        }
+
         CoroutineScope(Dispatchers.IO).launch {
-            createOptionsMenu(navigationView.menu, drawerLayout)
-            val mainPageUrl = fetchMainPageUrl()
-            if (mainPageUrl != null) {
-                runOnUiThread {
-                    webView.loadUrl(mainPageUrl)
+            if (currentUrl == null) {
+                val mainPageUrl = fetchMainPageUrl()
+                if (mainPageUrl != null) {
+                    runOnUiThread {
+                        webView.loadUrl(mainPageUrl)
+                    }
                 }
             }
+
+            createOptionsMenu(navigationView.menu, drawerLayout)
 
             cachedPages = fetchAvailablePages()
             filteredPages = cachedPages ?: emptyList()
@@ -262,6 +271,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+
+        currentUrl?.let { url ->
+            outState.putString("currentUrl", url)
+        }
+
         webView.saveState(outState)
     }
 
@@ -327,6 +341,7 @@ class MainActivity : AppCompatActivity() {
                 var modifiedUrl: String = appendParameter(url, "useskin", WIKI_SKIN)
                 modifiedUrl = appendParameter(modifiedUrl, "safemode", "1")
                 view.loadUrl(modifiedUrl)
+                currentUrl = modifiedUrl
 
                 setScaleIfNeeded(url)
 
@@ -334,6 +349,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             setScaleIfNeeded(url)
+            currentUrl = url
 
             return super.shouldOverrideUrlLoading(view, request)
         }
