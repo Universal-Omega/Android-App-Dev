@@ -29,4 +29,6 @@
     <string name="external_link_message">This is an external link. Do you want to open it in a browser?</string>
     <string name="external_link">External Link</string>
     <string name="cancel">Cancel</string>
+    <string name="clear_cache">Clear cache</string>
+    <string name="cache_cleared">Cache cleared.</string>
 </resources>

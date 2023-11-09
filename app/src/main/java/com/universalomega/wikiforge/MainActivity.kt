@@ -9,19 +9,24 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Bundle
-import android.view.Menu
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.SearchView
-import androidx.core.view.GravityCompat
-import androidx.drawerlayout.widget.DrawerLayout
+import androidx.core.view.isVisible
+import androidx.fragment.app.FragmentContainerView
+import androidx.fragment.app.commit
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.gson.annotations.SerializedName
 import com.universalomega.wikiforge.databinding.ActivityMainBinding
+import com.universalomega.wikiforge.search.SearchResultsFragment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -87,6 +92,11 @@ data class AvailablePagesQuery(
 
 data class AvailablePage(
     val title: String,
+)
+
+data class TitleWithUrl(
+    val title: String,
+    val url: String
 )
 
 data class ContinueData(
@@ -160,25 +170,35 @@ fun stripHtmlTags(html: String?): String? {
     return text.lines().firstOrNull()?.trim()
 }
 
-suspend fun fetchMainPageUrl(): String? {
+suspend fun fetchMainPageUrl(): TitleWithUrl? {
     val mainPage = stripHtmlTags(
         fetchPageContent("MediaWiki:Mainpage")?.parse?.text
     ) ?: return null
 
     val baseUrl = "${WIKI_URL + WIKI_SCRIPT}index.php"
-    return Uri.parse(baseUrl)
+    val url = Uri.parse(baseUrl)
         .buildUpon()
         .appendQueryParameter("title", mainPage)
         .build()
         .toString()
+
+    return TitleWithUrl(
+        title = mainPage,
+        url = url
+    )
 }
 
 class MainActivity : AppCompatActivity() {
     private var currentUrl: String? = null
+
     private var cachedPages: List<String>? = null
     private lateinit var filteredPages: List<String>
 
     private lateinit var webView: WebView
+    private lateinit var materialToolbar: MaterialToolbar
+    private lateinit var fragmentContainerView: FragmentContainerView
+    private lateinit var searchResultsFragment: SearchResultsFragment
+    private lateinit var loadingProgressBar: LinearProgressIndicator
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -186,11 +206,19 @@ class MainActivity : AppCompatActivity() {
         val binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val drawerLayout = binding.drawerLayout
+        loadingProgressBar = binding.loadingProgressBar
+        loadingProgressBar.max = 100
+
+        materialToolbar = binding.materialToolbar
         val swipeRefreshLayout = binding.swipeRefreshLayout
 
         val contentTextView = binding.contentTextView
-        val navigationView = binding.navigationView
+
+        fragmentContainerView = binding.fragmentContainer
+        searchResultsFragment = SearchResultsFragment()
+        supportFragmentManager.commit {
+            add(fragmentContainerView.id, searchResultsFragment)
+        }
 
         webView = binding.webView
 
@@ -198,13 +226,33 @@ class MainActivity : AppCompatActivity() {
         webView.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
 
         webView.webViewClient = WikiWebViewClient()
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                super.onProgressChanged(view, newProgress)
+                // Update your loading bar or handle progress changes here
+                loadingProgressBar.progress = newProgress
+            }
+
+            override fun onReceivedIcon(view: WebView?, icon: Bitmap?) {
+                super.onReceivedIcon(view, icon)
+                materialToolbar.navigationIcon = createFaviconDrawable(icon)
+            }
+        }
+
+        val searchItem = materialToolbar.menu.findItem(R.id.action_search)
+        val searchView = searchItem.actionView as SearchView
+        fun finishSearch() {
+            searchView.setQuery(null, false)
+            materialToolbar.clearFocus()
+            fragmentContainerView.isVisible = false
+        }
 
         // Handle back press
         val onBackPressedCallback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (drawerLayout.isOpen) {
-                    // If the drawer is open when we press back, close it
-                    drawerLayout.closeDrawer(GravityCompat.START)
+                if (fragmentContainerView.isVisible) {
+                    // Stop searching if we are right now
+                    finishSearch()
                 } else if (webView.canGoBack()) {
                     // If the WebView can go back, navigate back in the WebView's history
                     webView.goBack()
@@ -234,26 +282,27 @@ class MainActivity : AppCompatActivity() {
 
         CoroutineScope(Dispatchers.IO).launch {
             if (currentUrl == null) {
-                val mainPageUrl = fetchMainPageUrl()
-                if (mainPageUrl != null) {
+                val mainPage = fetchMainPageUrl()
+                if (mainPage != null) {
                     runOnUiThread {
-                        webView.loadUrl(mainPageUrl)
+                        materialToolbar.title = mainPage.title
+                        materialToolbar.navigationIcon = null
+                        webView.loadUrl(mainPage.url)
                     }
                 }
             }
 
-            createOptionsMenu(navigationView.menu, drawerLayout)
+            handleToolbarOptions()
 
             cachedPages = fetchAvailablePages()
             filteredPages = cachedPages ?: emptyList()
 
             if (filteredPages.isNotEmpty()) {
-                // Handle DrawerLayout menu item clicks
-                navigationView.setNavigationItemSelectedListener { menuItem ->
-                    if (menuItem.itemId == R.id.action_search) return@setNavigationItemSelectedListener false
-                    val selectedPageTitle = menuItem.title.toString()
+                createToolbar(searchView)
 
+                searchResultsFragment.setOnPageSelectedListener { selectedPageTitle ->
                     runOnUiThread {
+                        finishSearch()
                         try {
                             // Check if there's a valid URL to load
                             val baseUrl = "${WIKI_URL + WIKI_SCRIPT}index.php"
@@ -269,10 +318,6 @@ class MainActivity : AppCompatActivity() {
                             contentTextView.text = getString(R.string.failed_to_fetch_content)
                         }
                     }
-
-                    // Close the DrawerLayout after item selection
-                    drawerLayout.closeDrawer(GravityCompat.START)
-                    true
                 }
             } else {
                 contentTextView.text = getString(R.string.no_available_pages_found)
@@ -295,54 +340,50 @@ class MainActivity : AppCompatActivity() {
         webView.restoreState(savedInstanceState)
     }
 
-    private fun createOptionsMenu(menu: Menu, drawerLayout: DrawerLayout): Boolean {
-        val searchItem = menu.findItem(R.id.action_search)
-        val searchView = searchItem.actionView as SearchView
+    private fun handleToolbarOptions() {
+        materialToolbar.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.action_clear_cache -> {
+                    webView.clearCache(true)
+                    webView.reload()
+                    Toast.makeText(this, R.string.cache_cleared, Toast.LENGTH_SHORT).show()
+                    true
+                }
+                else -> true
+            }
+        }
+    }
 
+    private fun createToolbar(searchView: SearchView) {
         searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String): Boolean {
                 return false
             }
 
             override fun onQueryTextChange(newText: String): Boolean {
-                filterPages(newText, menu)
-
-                // So we don't loose focus
-                if (!searchView.isFocused && drawerLayout.isOpen) {
-                    searchView.post {
-                        searchView.requestFocus()
-                    }
-                }
-
+                filterPages(newText)
                 return true
             }
         })
-
-        return true
     }
 
-    private fun filterPages(query: String, menu: Menu) {
+    private fun filterPages(query: String) {
         val lowerCaseQuery = query.lowercase(Locale.getDefault())
         filteredPages = if (query.isNotBlank()) {
             cachedPages?.filter { it.lowercase(Locale.getDefault()).contains(lowerCaseQuery) }
                 ?: emptyList()
         } else emptyList()
-        updateDrawerMenu(menu)
-    }
 
-    private fun updateDrawerMenu(menu: Menu) {
-        menu.removeGroup(R.id.group_id)
-        for (page in filteredPages) {
-            menu.add(R.id.group_id, Menu.NONE, Menu.NONE, page).icon =
-                createFaviconDrawable(webView.favicon)
-        }
+        searchResultsFragment.updateSearchResults(filteredPages)
+        fragmentContainerView.isVisible = filteredPages.isNotEmpty()
     }
 
     private fun createFaviconDrawable(faviconBitmap: Bitmap?): Drawable {
         return object : Drawable() {
             override fun draw(canvas: Canvas) {
                 faviconBitmap?.let { bitmap ->
-                    canvas.drawBitmap(bitmap, bounds.left.toFloat(), 15f, null)
+                    val scaledBitmap = Bitmap.createScaledBitmap(bitmap, 80, 80, false)
+                    canvas.drawBitmap(scaledBitmap, 40f, 40f, null)
                 }
             }
 
@@ -360,6 +401,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     inner class WikiWebViewClient : WebViewClient() {
+
+        override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+            super.onPageStarted(view, url, favicon)
+            loadingProgressBar.show()
+            loadingProgressBar.progress = 0
+        }
+
+        override fun onPageFinished(view: WebView?, url: String?) {
+            super.onPageFinished(view, url)
+            loadingProgressBar.hide()
+        }
+
+        override fun onPageCommitVisible(view: WebView?, url: String?) {
+            super.onPageCommitVisible(view, url)
+            materialToolbar.title = webView.title
+        }
+
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val url = request.url.toString()
             if (isExternalLink(url)) {
@@ -367,20 +425,18 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
 
+            setScaleIfNeeded(url)
+
             if (!url.contains("useskin=$WIKI_SKIN")) {
                 var modifiedUrl: String = appendParameter(url, "useskin", WIKI_SKIN)
                 modifiedUrl = appendParameter(modifiedUrl, "safemode", "1")
                 view.loadUrl(modifiedUrl)
                 currentUrl = modifiedUrl
 
-                setScaleIfNeeded(url)
-
                 return true
             }
 
-            setScaleIfNeeded(url)
             currentUrl = url
-
             return super.shouldOverrideUrlLoading(view, request)
         }
 
