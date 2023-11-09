@@ -227,18 +227,7 @@ class MainActivity : AppCompatActivity() {
         webView.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
 
         webView.webViewClient = WikiWebViewClient()
-        webView.webChromeClient = object : WebChromeClient() {
-            override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                super.onProgressChanged(view, newProgress)
-                // Update your loading bar or handle progress changes here
-                loadingProgressBar.progress = newProgress
-            }
-
-            override fun onReceivedIcon(view: WebView?, icon: Bitmap?) {
-                super.onReceivedIcon(view, icon)
-                materialToolbar.navigationIcon = createFaviconDrawable(icon)
-            }
-        }
+        webView.webChromeClient = WikiWebChromeClient()
 
         val searchItem = materialToolbar.menu.findItem(R.id.action_search)
         val searchView = searchItem.actionView as SearchView
@@ -380,35 +369,14 @@ class MainActivity : AppCompatActivity() {
         fragmentContainerView.isVisible = filteredPages.isNotEmpty()
     }
 
-    private fun createFaviconDrawable(faviconBitmap: Bitmap?): Drawable {
-        return object : Drawable() {
-            override fun draw(canvas: Canvas) {
-                faviconBitmap?.let { bitmap ->
-                    val scaledBitmap = Bitmap.createScaledBitmap(bitmap, 80, 80, false)
-                    canvas.drawBitmap(scaledBitmap, 40f, 40f, null)
-                }
-            }
-
-            override fun setAlpha(alpha: Int) {}
-
-            override fun setColorFilter(colorFilter: ColorFilter?) {}
-
-            @Deprecated(
-                "Deprecated in Java",
-                ReplaceWith("PixelFormat.TRANSLUCENT", "android.graphics.PixelFormat")
-            )
-            override fun getOpacity(): Int {
-                return PixelFormat.TRANSLUCENT
-            }
-        }
-    }
-
     inner class WikiWebViewClient : WebViewClient() {
 
         override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-            super.onPageStarted(view, url, favicon)
-            loadingProgressBar.show()
-            loadingProgressBar.progress = 0
+            super.onPageFinished(view, url)
+            if (!loadingProgressBar.isShown) {
+                loadingProgressBar.show()
+                loadingProgressBar.progress = 0
+            }
         }
 
         override fun onPageFinished(view: WebView?, url: String?) {
@@ -416,13 +384,10 @@ class MainActivity : AppCompatActivity() {
             loadingProgressBar.hide()
         }
 
-        override fun onPageCommitVisible(view: WebView?, url: String?) {
-            super.onPageCommitVisible(view, url)
-            materialToolbar.title = webView.title
-        }
-
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val url = request.url.toString()
+            loadingProgressBar.show()
+            loadingProgressBar.progress = 0
             if (isExternalLink(url)) {
                 showExternalLinkDialog(view, url)
                 return true
@@ -480,6 +445,47 @@ class MainActivity : AppCompatActivity() {
         private fun openLinkInBrowser(view: WebView, url: String) {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             view.context.startActivity(intent)
+        }
+    }
+
+    inner class WikiWebChromeClient(): WebChromeClient() {
+        override fun onProgressChanged(view: WebView?, newProgress: Int) {
+            super.onProgressChanged(view, newProgress)
+            // Update your loading bar or handle progress changes here
+            loadingProgressBar.progress = newProgress
+        }
+
+        override fun onReceivedIcon(view: WebView?, icon: Bitmap?) {
+            super.onReceivedIcon(view, icon)
+            materialToolbar.navigationIcon = createFaviconDrawable(icon)
+        }
+
+        override fun onReceivedTitle(view: WebView?, title: String?) {
+            super.onReceivedTitle(view, title)
+            materialToolbar.title = title
+        }
+
+        private fun createFaviconDrawable(faviconBitmap: Bitmap?): Drawable {
+            return object : Drawable() {
+                override fun draw(canvas: Canvas) {
+                    faviconBitmap?.let { bitmap ->
+                        val scaledBitmap = Bitmap.createScaledBitmap(bitmap, 80, 80, false)
+                        canvas.drawBitmap(scaledBitmap, 40f, 40f, null)
+                    }
+                }
+
+                override fun setAlpha(alpha: Int) {}
+
+                override fun setColorFilter(colorFilter: ColorFilter?) {}
+
+                @Deprecated(
+                    "Deprecated in Java",
+                    ReplaceWith("PixelFormat.TRANSLUCENT", "android.graphics.PixelFormat")
+                )
+                override fun getOpacity(): Int {
+                    return PixelFormat.TRANSLUCENT
+                }
+            }
         }
     }
 }
