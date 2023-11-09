@@ -448,7 +448,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    inner class WikiWebChromeClient(): WebChromeClient() {
+    inner class WikiWebChromeClient: WebChromeClient() {
         override fun onProgressChanged(view: WebView?, newProgress: Int) {
             super.onProgressChanged(view, newProgress)
             // Update your loading bar or handle progress changes here
