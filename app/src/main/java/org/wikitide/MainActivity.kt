@@ -1,4 +1,4 @@
-package com.universalomega.wikiforge
+package org.wikitide
 
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -25,12 +25,12 @@ import androidx.fragment.app.commit
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.gson.annotations.SerializedName
-import com.universalomega.wikiforge.databinding.ActivityMainBinding
-import com.universalomega.wikiforge.search.SearchResultsFragment
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.wikitide.databinding.ActivityMainBinding
+import org.wikitide.search.SearchResultsFragment
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
@@ -163,7 +163,7 @@ fun stripHtmlTags(html: String?): String? {
         return null
     }
 
-    val text =  html
+    val text = html
         .replace(Regex("<.*?>"), "") // Remove all HTML tags
         .replace(Regex("&[a-zA-Z]+;"), " ")
 
@@ -349,6 +349,7 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this, R.string.cache_cleared, Toast.LENGTH_SHORT).show()
                     true
                 }
+
                 else -> true
             }
         }
@@ -391,7 +392,8 @@ class MainActivity : AppCompatActivity() {
 
             override fun setColorFilter(colorFilter: ColorFilter?) {}
 
-            @Deprecated("Deprecated in Java",
+            @Deprecated(
+                "Deprecated in Java",
                 ReplaceWith("PixelFormat.TRANSLUCENT", "android.graphics.PixelFormat")
             )
             override fun getOpacity(): Int {

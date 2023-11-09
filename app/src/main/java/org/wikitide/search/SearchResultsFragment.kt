@@ -1,4 +1,4 @@
-package com.universalomega.wikiforge.search
+package org.wikitide.search
 
 import android.view.View
 import android.widget.ArrayAdapter

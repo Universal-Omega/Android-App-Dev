@@ -13,6 +13,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "WikiForge"
+rootProject.name = "WikiTide"
 include(":app")
  

@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.universalomega.wikiforge"
+    namespace = "org.wikitide"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.universalomega.wikiforge"
+        applicationId = "org.wikitide"
         minSdk = 24
         targetSdk = 34
         versionCode = 1
