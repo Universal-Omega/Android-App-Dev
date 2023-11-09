@@ -43,6 +43,7 @@ private const val WIKI_SKIN = "vector-2022"
 
 private val internalUrls = listOf(
     "wikiforge.net",
+    "wikitide.com",
     "wikitide.org"
 )
 
