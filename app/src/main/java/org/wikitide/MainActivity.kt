@@ -385,12 +385,13 @@ class MainActivity : AppCompatActivity() {
 
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val url = request.url.toString()
-            loadingProgressBar.show()
-            loadingProgressBar.progress = 0
             if (isExternalLink(url)) {
                 showExternalLinkDialog(view, url)
                 return true
             }
+
+            loadingProgressBar.show()
+            loadingProgressBar.progress = 0
 
             setScaleIfNeeded(url)
 
